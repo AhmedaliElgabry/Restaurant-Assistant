@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Speech Recognition API</title>
+    <!-- Your existing styles here -->
+    <style>
+        /* Your existing styles */
+        #response-area {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f0f0f0;
+        }
+        #response-area-2 {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Speech Recognition API</h1>
+        <p>Use this API to send an MP3 file containing speech. The speech will be transcribed using Whisper and processed by an OpenAI assistant.</p>
+        <form id="file-upload-form" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="file">Upload MP3 File:</label>
+                <input type="file" id="file" name="file" accept=".mp3">
+            </div>
+            <button type="submit">Submit</button>
+            <button type="button" id="end-thread">End Conversation</button>
+        </form>
+        <div id="response-area"></div>
+        <div id="response-area-2"></div>
+    </div>
+    <script>
+        document.getElementById('file-upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var formData = new FormData();
+            var fileField = document.querySelector('input[type="file"]');
+            formData.append('file', fileField.files[0]);
+
+            fetch('/message', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+            let responseText = 'Transcript: ' + result.transcript + '<br>';
+            responseText += 'Corrected Transcript: ' + result.corrected_transcript + '<br>';
+            responseText += 'Assistant: ' + result.responses.join(' ');
+            document.getElementById('response-area').innerHTML = responseText;
+            })
+
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('end-thread').addEventListener('click', function() {
+            fetch('/end-thread', {
+                method: 'POST'
+            })
+            .then(response => response.text())
+            .then(result => {
+                document.getElementById('response-area').textContent = result;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    </script>
+</body>
+</html>
