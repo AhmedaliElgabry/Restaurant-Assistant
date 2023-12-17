@@ -1,76 +1,92 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Speech Recognition API</title>
-    <!-- Your existing styles here -->
+    <title>Speech Recognition and TTS API</title>
     <style>
-        /* Your existing styles */
-        #response-area {
+        /* Add your existing styles here */
+        #response-area, #transcription-area {
             margin-top: 20px;
             border: 1px solid #ddd;
             padding: 10px;
             border-radius: 5px;
             background-color: #f0f0f0;
         }
-        #response-area-2 {
-            margin-top: 20px;
-            border: 1px solid #ddd;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #f0f0f0;
+        audio {
+            margin-top: 10px;
+            width: 100%;
+        }
+        #recordButton, #stopButton {
+            margin: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Speech Recognition API</h1>
-        <p>Use this API to send an MP3 file containing speech. The speech will be transcribed using Whisper and processed by an OpenAI assistant.</p>
-        <form id="file-upload-form" method="post" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="file">Upload MP3 File:</label>
-                <input type="file" id="file" name="file" accept=".mp3">
-            </div>
-            <button type="submit">Submit</button>
-            <button type="button" id="end-thread">End Conversation</button>
-        </form>
-        <div id="response-area"></div>
-        <div id="response-area-2"></div>
+        <h1>Speech Recognition and TTS API</h1>
+        <p>Record your speech, and it will be transcribed and processed. The response will be played back as audio and displayed as text.</p>
+        
+        <button id="recordButton">Record</button>
+        <button id="stopButton" disabled>Stop</button>
+        
+        <div id="transcription-area">
+            <h2>Transcribed Text</h2>
+            <p id="transcription-text"></p>
+        </div>
+        <div id="response-area">
+            <h2>Assistant Response</h2>
+            <audio id="response-audio" controls hidden></audio>
+            <p id="response-text"></p>
+        </div>
     </div>
     <script>
-        document.getElementById('file-upload-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            var formData = new FormData();
-            var fileField = document.querySelector('input[type="file"]');
-            formData.append('file', fileField.files[0]);
+        let mediaRecorder;
+        let audioChunks = [];
 
-            fetch('/message', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(result => {
-            let responseText = 'Transcript: ' + result.transcript + '<br>';
-            responseText += 'Corrected Transcript: ' + result.corrected_transcript + '<br>';
-            responseText += 'Assistant: ' + result.responses.join(' ');
-            document.getElementById('response-area').innerHTML = responseText;
-            })
+        document.getElementById('recordButton').addEventListener('click', function() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
 
-            .catch(error => {
-                console.error('Error:', error);
-            });
+                    mediaRecorder.addEventListener("stop", () => {
+                        const audioBlob = new Blob(audioChunks);
+                        const formData = new FormData();
+                        formData.append('file', audioBlob, 'recorded_audio.mp3');
+                        fetch('/message', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            document.getElementById('transcription-text').textContent = result.transcription;
+                            if (result.audio_url) {
+                                let audioPlayer = document.getElementById('response-audio');
+                                audioPlayer.src = result.audio_url;
+                                audioPlayer.hidden = false;
+                                audioPlayer.play();
+                                document.getElementById('response-text').textContent = result.response_text;
+                            } else {
+                                document.getElementById('response-area').textContent = 'Error: No audio response';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                    });
+
+                    document.getElementById('recordButton').disabled = true;
+                    document.getElementById('stopButton').disabled = false;
+                });
         });
 
-        document.getElementById('end-thread').addEventListener('click', function() {
-            fetch('/end-thread', {
-                method: 'POST'
-            })
-            .then(response => response.text())
-            .then(result => {
-                document.getElementById('response-area').textContent = result;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+        document.getElementById('stopButton').addEventListener('click', function() {
+            mediaRecorder.stop();
+            document.getElementById('recordButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
         });
     </script>
 </body>
